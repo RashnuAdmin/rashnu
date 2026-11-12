@@ -1,0 +1,27 @@
+node_modules/
+.turbo/
+.next/
+dist/
+build/
+out/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.vercel/
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/*/*.lock
+contracts/lcov.info
+contracts/.env
+
+.DS_Store
+.vercel
+.env*
+
+# crapper/dryer/mutator quality-gate output (see docs/runbook.md)
+.metrics/
+coverage/
+target/

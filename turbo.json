@@ -1,0 +1,35 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "app/.well-known/workflow/**"],
+      "env": [
+        "DATABASE_URL",
+        "SESSION_SECRET",
+        "ADMIN_SECRET",
+        "ADMIN_WALLET_ADDRESSES",
+        "CRON_SECRET",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "USDC_ADDRESS",
+        "NEXT_PUBLIC_USDC_ADDRESS",
+        "BASE_SEPOLIA_RPC_URL",
+        "BASE_RPC_URL"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    }
+  }
+}

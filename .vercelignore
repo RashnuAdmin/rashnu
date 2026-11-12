@@ -1,0 +1,14 @@
+# Vercel only needs to build apps/web - nothing here helps that build and some of
+# it (contracts/lib's vendored OpenZeppelin submodule) is sizeable for no benefit.
+# Explicit even where .gitignore already covers it - a present .vercelignore can
+# stop .gitignore from being considered at all, so these are not redundant.
+contracts/
+docs/
+*.tsbuildinfo
+coverage/
+.metrics/
+target/
+node_modules/
+.next/
+.turbo/
+.git/
