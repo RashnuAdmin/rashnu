@@ -3,8 +3,13 @@
 **Status:** the contract (`contracts-ton/`) is implemented and tested - 18
 tests covering access control, the full funding/settlement/recovery lifecycle,
 and the forged-jetton-notification guard, including two fuzz tests on the
-fee-split arithmetic. Not yet deployed anywhere real. The Telegram Mini App
-itself (`apps/web/app/tg/`) is not started.
+fee-split arithmetic. Not yet deployed anywhere real. The Mini App's auth/identity
+layer is implemented and tested: `lib/telegram-init-data.ts` (Telegram user
+verification) and `lib/ton-proof.ts` (TON wallet verification), both hand-rolled
+against stable published specs rather than the churning SDK wrapper packages -
+see the "Update (implementation time)" notes on ADR-013/ADR-014. The `/api/tg/*`
+routes, the Mini App page itself (`apps/web/app/tg/`), the bot webhook, and the
+`ton_*` database/purchase flow are not yet started.
 
 A second, independent payment pool on TON, reachable via a Telegram Mini App.
 **Purely additive**: the existing Base/USDC pool, its contract, its web buyer
@@ -162,18 +167,30 @@ scheduling can take advantage of, not a requirement the architecture imposes.
 ## Telegram Mini App - auth and buy flow
 
 1. User opens the Mini App from the bot. Telegram supplies `initData` - a signed
-   string proving *which* Telegram user this is, verified server-side via
-   `@tma.js/init-data-node` (HMAC-SHA256 keyed by `HMAC-SHA256("WebAppData",
-   BOT_TOKEN)` over the sorted payload). Never trust the client-parsed
-   `initDataUnsafe` object for anything authorization-relevant, and check
-   `auth_date` for staleness - the same discipline as every other auth path in
-   this project.
+   string proving *which* Telegram user this is, verified server-side by
+   `lib/telegram-init-data.ts` (HMAC-SHA256 keyed by `HMAC-SHA256("WebAppData",
+   BOT_TOKEN)` over the sorted payload, hand-rolled against Telegram's own stable
+   docs rather than the churning `@telegram-apps`/`@tma.js` wrapper packages - see
+   ADR-014's update). Never trust the client-parsed `initDataUnsafe` object for
+   anything authorization-relevant, and check `auth_date` for staleness - the same
+   discipline as every other auth path in this project. On success the Telegram
+   user id is stored in the `rashnu_tg_session` cookie (`lib/tg-session.ts`).
 2. User connects a TON wallet via `@tonconnect/ui-react`, then signs a TON Proof
-   payload (domain+nonce-bound, Ed25519) - verified server-side via `@ton/ton`'s
-   proof-verification primitive, the TON analog to the existing `siwe` flow. This
-   establishes the TON wallet identity (ADR-013) - separate from, and not linked
-   to, the Telegram user identity from step 1 unless explicitly stored as a
-   mapping (useful for notifications - see below - but not required for buying).
+   payload (domain+nonce-bound, Ed25519). The server issues the nonce
+   (`generateTonProofPayload()`, stored in the session) and verifies the wallet's
+   signed reply (`verifyTonProof()` in `lib/ton-proof.ts`, using `@ton/core`'s
+   `Address` to parse the wallet address and `@ton/crypto`'s `signVerify` for the
+   Ed25519 check) - hand-rolled against the TON Connect spec directly; see
+   ADR-013's update for why (no ready-made verification primitive actually exists
+   in `@ton/ton`, despite that ADR's original wording). This establishes the TON
+   wallet identity (ADR-013) - separate from, and not linked to, the Telegram user
+   identity from step 1 unless explicitly stored as a mapping (useful for
+   notifications - see below - but not required for buying). `lib/ton-proof.ts`
+   documents a known v1 simplification: it trusts the wallet-supplied
+   `Account.publicKey` directly, even though `@tonconnect/sdk`'s own types mark
+   that field "not authoritative" - the documented alternative (parsing
+   `walletStateInit` per wallet version, or calling `get_public_key()` on-chain)
+   is real but nontrivial, and worth revisiting before mainnet, not before v1.
 3. Buyer purchases tickets; pays USDT (jetton transfer) from the same connected
    wallet to the draw's published jetton-wallet address - mirrors ADR-005's
    "payment attribution is just the sender address" principle exactly, on TON's
@@ -189,6 +206,15 @@ connection) and `actionsConfiguration.twaReturnUrl` set on `TonConnectUIProvider
 so that an external wallet app's approval flow returns the user back into the
 Telegram WebView afterward. This doesn't exist in a plain-web TON Connect
 integration and isn't optional for the Mini App context specifically.
+
+**Another easy-to-miss wrinkle, caught during implementation:** `next.config.ts`'s
+existing `headers()` sent a blanket `X-Frame-Options: DENY` on every route - fine
+for the Base buyer flow, fatal for the Mini App, since Telegram Web renders Mini
+Apps inside an `<iframe>` and that header would have blocked it from ever loading
+there. Fixed by excluding `/tg/*` from that rule and giving it its own
+`Content-Security-Policy: frame-ancestors` instead, scoped to Telegram's own
+origins (`web.telegram.org`, `oauth.telegram.org`) rather than dropping frame
+protection entirely.
 
 ## What's explicitly NOT changing
 

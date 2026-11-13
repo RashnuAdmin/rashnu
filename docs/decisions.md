@@ -288,6 +288,21 @@ addresses aren't 0x-prefixed EVM addresses and shouldn't be forced into the same
 column format. Cross-pool account linking is explicitly out of scope unless asked
 for later - adding it now would be solving a problem nobody's raised yet.
 
+**Update (implementation time):** the claim above that "`@ton/ton` exposes the
+verification primitive directly" didn't hold up - a real download of the package
+(`npm pack @ton/ton`, inspecting its actual `.d.ts` files) turned up no
+proof/ton_proof-related export at all. What's real and verified: `@ton/core`
+exports `Address` (parses TonConnect's raw `<workchain>:<hex>` address string
+into the workchain + 32-byte hash the signed message is built from), and
+`@ton/crypto` exports `signVerify(data, signature, publicKey): boolean` - the
+actual Ed25519 check. `lib/ton-proof.ts` hand-rolls the message construction
+directly against the TON Connect spec (ton-blockchain/ton-connect,
+spec/connect.md#address-proof-signature-ton_proof) using those two primitives,
+the same "verify a stable spec by hand rather than trust an unverified library
+claim" approach `lib/telegram-init-data.ts` took (see ADR-014's update). It also
+carries forward the known `Account.publicKey`-is-not-authoritative caveat
+(documented in `lib/ton-proof.ts` itself) as a deliberate v1 simplification.
+
 ---
 
 ### ADR-014: Telegram Mini App platform - `@telegram-apps/sdk` + TON Connect
@@ -319,3 +334,20 @@ doesn't exist in a plain-web TON Connect integration and is easy to miss.
 **Consequences:** Same re-verify-before-building note as ADR-011 - two renames in
 one package's short lifetime is a strong signal to re-check current package names
 at actual implementation time, not trust this list indefinitely.
+
+**Update (implementation time):** the churn kept going past this ADR's own
+writing - `@tma.js/init-data-node` turned out to already be deprecated too (in
+favor of `@tma.js/init-data`), which is *also* deprecated ("moved to
+`@tma.js/sdk` and is not supported anymore", confirmed via `npm view ...
+deprecated`). `@tma.js/sdk` exists and is current, but its own description
+("client application" SDK) doesn't clearly cover server-side verification.
+Given a dependency chain that renamed itself three times inside one
+conversation, `lib/telegram-init-data.ts` hand-rolls verification directly
+against Telegram's own stable, documented algorithm
+(core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app)
+using Node's built-in `crypto`, with no `@telegram-apps`/`@tma.js` runtime
+dependency for this piece at all - that spec hasn't changed while the wrapper
+packages around it have, repeatedly. `@telegram-apps/sdk-react` is still used
+as planned for the Mini App's client-side platform integration (launch params,
+viewport, etc.) - only the server-side `initData`-verification package was
+dropped.

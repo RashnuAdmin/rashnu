@@ -21,12 +21,32 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        // Excludes /tg - the Telegram Mini App - which must be frameable by
+        // Telegram itself (see the next rule) and would otherwise be blocked
+        // from loading at all inside Telegram Web's iframe.
+        source: "/((?!tg).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+      {
+        // Telegram Web renders Mini Apps inside an <iframe>; a blanket
+        // X-Frame-Options: DENY (the rule above) would silently block the
+        // app from ever loading there. CSP's frame-ancestors is the modern,
+        // precise replacement - scoped to Telegram's own origins only, so
+        // this path still can't be framed by anything else.
+        source: "/tg/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self' https://web.telegram.org https://oauth.telegram.org;",
+          },
         ],
       },
     ];

@@ -385,7 +385,21 @@ repos. A visible dispute channel (a GitHub issue template is enough for v1).
     worth not getting wrong. Zero lint warnings, fully formatted. Not yet
     deployed anywhere - needs real testnet USDT minter/jetton-wallet-code
     values first, not placeholders.
-  - **Still open**: the new `ton_*` database tables, the Telegram Mini App buy
-    flow, and the deployment scripts (removed the Acton counter-template's
-    stale ones rather than leave them referencing a contract that no longer
-    exists).
+  - **Mini App auth/identity** ✅. `lib/telegram-init-data.ts` (Telegram
+    `initData` verification) and `lib/ton-proof.ts` (TON wallet verification via
+    TON Proof) - both hand-rolled against stable published specs rather than
+    the churning SDK wrapper packages (see the "Update" notes on ADR-013/014).
+    The `/api/tg/verify-init-data`, `/api/tg/ton-proof/payload`,
+    `/api/tg/ton-proof/verify` routes, the `rashnu_tg_session` cookie, the
+    `/tg` Mini App page (TonConnect button, wired end to end to both auth
+    steps), the `tonconnect-manifest.json` route, and the bot webhook
+    (`/api/tg/bot-webhook`, `/start` -> opens the Mini App) are all in place and
+    covered by tests (`pnpm test`: 50/50 passing). `next.config.ts`'s headers
+    were also fixed to allow Telegram to frame `/tg` (a blanket
+    `X-Frame-Options: DENY` would otherwise have blocked it from loading inside
+    Telegram Web at all).
+  - **Still open**: the new `ton_*` database tables, the actual ticket-purchase
+    flow (jetton transfer from the connected wallet), the deployment scripts
+    (removed the Acton counter-template's stale ones rather than leave them
+    referencing a contract that no longer exists), and registering a real bot
+    with BotFather / setting `setWebhook`'s `secret_token` in production.
