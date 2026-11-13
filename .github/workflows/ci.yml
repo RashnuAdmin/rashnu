@@ -55,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ton-blockchain/setup-acton@v1
+      - uses: ton-blockchain/setup-acton@0f9f436843d740466cae2d7411ff59072dde942e # v1.2.0
 
       - name: Build
         working-directory: contracts-ton
