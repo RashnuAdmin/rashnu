@@ -371,10 +371,21 @@ repos. A visible dispute channel (a GitHub issue template is enough for v1).
 - **M6 - Mainnet cutover (separate, explicitly gated).** See the runbook's mainnet
   cutover checklist. Does not start until legal/licensing sign-off and a professional
   contract audit are both in hand.
-- **M7 - TON pool + Telegram Mini App (separate track, not blocked by M6).** A
-  second, independent payment pool on TON, reachable via a Telegram Mini App - see
-  ADR-010 through ADR-014 in `decisions.md` and the full design in
-  [`ton-pool.md`](./ton-pool.md). Purely additive: the existing Base/USDC pool,
-  contract, and buyer flow are unchanged. Not started - full design research done
-  and documented; next steps are the Tolk/Acton contract, the new `ton_*` tables,
-  and the Mini App buy flow, roughly mirroring M2/M3's shape for the new chain.
+- **M7 - TON pool + Telegram Mini App (separate track, not blocked by M6).** 🟡
+  In progress. A second, independent payment pool on TON, reachable via a
+  Telegram Mini App - see ADR-010 through ADR-014 in `decisions.md` and the full
+  design in [`ton-pool.md`](./ton-pool.md). Purely additive: the existing
+  Base/USDC pool, contract, and buyer flow are unchanged.
+  - **Contract** ✅. `contracts-ton/` - a Tolk contract built with Acton,
+    mirroring `LotteryPool.sol`'s lifecycle (register -> fund -> settle ->
+    recover) adapted for TON's async message-passing model. 18 tests passing
+    (access control, the full lifecycle, timeout-gated recovery, two fuzz tests
+    on the fee-split arithmetic) plus the forged-jetton-notification guard
+    specifically - the TON equivalent of a reentrancy check, and the one most
+    worth not getting wrong. Zero lint warnings, fully formatted. Not yet
+    deployed anywhere - needs real testnet USDT minter/jetton-wallet-code
+    values first, not placeholders.
+  - **Still open**: the new `ton_*` database tables, the Telegram Mini App buy
+    flow, and the deployment scripts (removed the Acton counter-template's
+    stale ones rather than leave them referencing a contract that no longer
+    exists).

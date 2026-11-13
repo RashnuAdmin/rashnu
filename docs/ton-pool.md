@@ -1,5 +1,11 @@
 # TON pool - design (Telegram Mini App)
 
+**Status:** the contract (`contracts-ton/`) is implemented and tested - 18
+tests covering access control, the full funding/settlement/recovery lifecycle,
+and the forged-jetton-notification guard, including two fuzz tests on the
+fee-split arithmetic. Not yet deployed anywhere real. The Telegram Mini App
+itself (`apps/web/app/tg/`) is not started.
+
 A second, independent payment pool on TON, reachable via a Telegram Mini App.
 **Purely additive**: the existing Base/USDC pool, its contract, its web buyer
 flow, and the `rashnu-verifier` RNG/verification logic are all unchanged. See
@@ -79,7 +85,28 @@ model is different enough that the implementation needs its own design pass:
 **Test bar:** the same rigor `LotteryPool.sol` was held to - unit tests, plus
 fuzz/invariant tests via Acton's tooling (fee-split arithmetic, balance
 reconciliation, the forged-notification guard specifically) before calling this
-done, not just before shipping to mainnet.
+done, not just before shipping to mainnet. **Met**: 18 tests in
+`contracts-ton/tests/RashnuTonPool.test.tolk`, including two fuzz tests (256
+runs each) on the fee-split arithmetic and dedicated tests for the
+forged-notification guard specifically (wrong sender, wrong transferInitiator).
+
+**Implementation note on funding, decided while building, not pre-decided
+above:** matching a jetton `TransferNotification` back to the right draw would
+normally mean decoding a `drawId` out of the transfer's forward payload (a
+TL/B `Either Cell ^Cell` structure). v1 sidesteps this: `RegisterDraw` sets
+`pendingFundingDrawId`, and the next accepted `TransferNotification` funds
+that specific draw - mirroring the existing EVM platform's own app-level "one
+active draw at a time" invariant, just enforced here at the contract level.
+Documented in `types.tolk` at the `pendingFundingDrawId` field. If
+simultaneous TON draws are ever wanted, this needs revisiting to actually
+decode a `drawId` from the payload instead.
+
+**Known, documented gap, not yet closed:** `onBouncedMessage` doesn't do
+anything beyond accepting the bounce - a bounced payout currently has no
+retry path or on-chain marker for an operator to notice. The gas amount
+attached to outbound jetton transfers (`JETTON_TRANSFER_GAS`) is also a
+placeholder, not a benchmarked figure. Both need real work via Acton's gas
+tooling before this is production-ready.
 
 **Reference points, not templates to copy blindly:** Lotshot (a CertiK-audited,
 fully on-chain instant-win lottery on TON - the closest direct domain match) and
