@@ -371,3 +371,10 @@ repos. A visible dispute channel (a GitHub issue template is enough for v1).
 - **M6 - Mainnet cutover (separate, explicitly gated).** See the runbook's mainnet
   cutover checklist. Does not start until legal/licensing sign-off and a professional
   contract audit are both in hand.
+- **M7 - TON pool + Telegram Mini App (separate track, not blocked by M6).** A
+  second, independent payment pool on TON, reachable via a Telegram Mini App - see
+  ADR-010 through ADR-014 in `decisions.md` and the full design in
+  [`ton-pool.md`](./ton-pool.md). Purely additive: the existing Base/USDC pool,
+  contract, and buyer flow are unchanged. Not started - full design research done
+  and documented; next steps are the Tolk/Acton contract, the new `ton_*` tables,
+  and the Mini App buy flow, roughly mirroring M2/M3's shape for the new chain.

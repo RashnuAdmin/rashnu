@@ -175,3 +175,147 @@ not abandoned.
 - `vercel` CLI pinned as a workspace devDependency rather than installed globally, to
   avoid depending on any particular machine's global npm permissions and to keep the
   CLI version reproducible per-repo.
+
+---
+
+### ADR-010: A second, TON-native payment rail - parallel pool, not a replacement
+
+**Status:** Accepted.
+
+**Context:** Telegram made TON the exclusive blockchain for in-Mini-App crypto
+payments (January 2025) - so reaching buyers inside Telegram itself effectively
+requires TON support, not just "another wallet connector" on the existing EVM flow.
+This is exactly the scenario ADR-004 already anticipated: "a second rail can be
+added later as an independent parallel pool sharing the same RNG seed, not a
+cross-chain bridge."
+
+**Decision:** Add a second, fully independent pool denominated and settled on TON,
+reachable via a Telegram Mini App. The existing Base/USDC pool, its contract, its
+web buyer flow, and its verifier logic are **unchanged** - this is purely additive.
+The two pools share only the RNG mechanism conceptually (see ADR below on shared
+seed), never funds, contracts, or buyer identity. No bridge of any kind connects
+them - a TON buyer and a Base buyer are simply playing in two separate pots that
+happen to resolve via the same kind of Bitcoin-anchored randomness.
+
+**Consequences:** This is real new engineering, not a config change - roughly
+re-doing M2 (smart contract) and the relevant parts of M3 (purchase flow,
+reconciliation, buyer identity) for a second chain. See `docs/ton-pool.md` for the
+full design. Scoped as its own milestone track (M7+), not folded into M5/M6, which
+are specific to the existing EVM platform's hardening and mainnet path.
+
+---
+
+### ADR-011: TON contract language and tooling - Tolk + Acton
+
+**Status:** Accepted, with an explicit re-verify-before-building caveat.
+
+**Context:** TON's contract-language landscape moved through three distinct phases
+within 2026 alone: FunC (original) -> Tact (recommended through early 2026) -> Tolk
+(current, as of this writing). Tooling moved in lockstep: Blueprint (the
+FunC/Tact-era dev framework) is now itself deprecated in favor of Acton, a newer
+unified toolchain with a browser IDE ("Acton Studio") and built-in fuzz/mutation
+testing support. This was verified two ways before writing it down here: a
+dedicated research pass, then an independent spot-check search specifically because
+"Tact deprecated already" was surprising enough to doubt - both confirmed Tolk is
+TON's own officially recommended current language and Tact's own GitHub repo
+self-reports as deprecated.
+
+**Decision:** Build the TON contract in **Tolk**, using **Acton** as the dev/test
+toolchain (compile, deploy, test against Acton's sandbox-based local TVM emulator -
+the TON analog to Foundry's `forge test`). Explicitly reject Tact/Blueprint despite
+their broader existing community tutorials/examples - writing new code against an
+already-deprecated stack would be a mistake caught immediately by any later
+reviewer or auditor.
+
+**Consequences:** This ecosystem is unusually fast-moving (three transitions in one
+calendar year) - **re-verify the current recommended language/toolchain at actual
+implementation time**, don't trust this ADR's snapshot blindly if meaningful time
+has passed since it was written. Mirror the existing EVM contract's testing
+discipline: fuzz + invariant tests via Acton's tooling before calling the TON
+contract done, the same bar `LotteryPool.sol` was held to (see ADR process in M2).
+
+---
+
+### ADR-012: TON pool stablecoin - USDT, not USDC
+
+**Status:** Accepted, explicitly flagged as a known departure from ADR-004's
+original reasoning.
+
+**Context:** ADR-004 chose USDC specifically for being "a reputable,
+regulator-friendly stablecoin." On TON, there is **no native Circle-issued USDC** -
+only unofficial wrapped/bridged imitations exist, which this project won't use
+(consistent with ADR-004's own anti-bridge stance). **USDT, by contrast, has been
+natively issued on TON (not bridged) since April 2024**, jointly announced by
+Tether and the TON Foundation, and is the deep-liquidity, widely-supported
+stablecoin standard there (TEP-74 jetton).
+
+**Decision:** The TON pool is denominated and settled in native TON USDT, not
+USDC. This is a real, user-facing product difference from the Base pool, not a
+cosmetic one - stated plainly here rather than implied to be equivalent.
+
+**Consequences:** Ticket prices and payouts for the TON pool are in USDT. If
+Circle ever issues real native USDC on TON, revisit this ADR - the preference for
+USDC's reputation (ADR-004) hasn't changed, only the lack of an actual option on
+this chain.
+
+---
+
+### ADR-013: TON buyer identity - TON Proof, a separate namespace from EVM buyers
+
+**Status:** Accepted.
+
+**Context:** ADR-005 made the EVM pool's buyer identity *and* payment source the
+same wallet, authenticated via SIWE. TON Connect has a direct analog - **TON
+Proof** - but it's a structurally different mechanism: the wallet signs a
+domain-and-nonce-bound payload (`"ton-proof-item-v2/" ++ Address ++ AppDomain ++
+Timestamp ++ Payload`), verified server-side as an **Ed25519** signature, not the
+secp256k1/EIP-191 path our existing `siwe` dependency handles. The official `@ton/ton`
+package exposes the verification primitive directly (no mature pre-built
+"ton-siwe"-equivalent library worth depending on, unlike the EVM side) - wrap it
+ourselves, consistent with how deliberately thin `lib/session.ts`/`lib/admin-auth.ts`
+already are.
+
+**Decision:** TON buyers authenticate via TON Proof, using the same
+"wallet-is-identity-is-payment-source" principle as ADR-005, just on TON's own
+cryptography. A TON wallet address is **not** the same buyer identity as an EVM
+wallet address - there is no account-linking between the two pools in v1. Someone
+who has bought tickets on the Base pool and wants to buy TON-pool tickets signs in
+again, separately, with their TON wallet.
+
+**Consequences:** Two separate buyer/identity tables (or a clear discriminator
+column - see `docs/ton-pool.md` for the exact schema approach), since TON
+addresses aren't 0x-prefixed EVM addresses and shouldn't be forced into the same
+column format. Cross-pool account linking is explicitly out of scope unless asked
+for later - adding it now would be solving a problem nobody's raised yet.
+
+---
+
+### ADR-014: Telegram Mini App platform - `@telegram-apps/sdk` + TON Connect
+
+**Status:** Accepted, with the same re-verify caveat as ADR-011 - this stack also
+renamed itself mid-2026.
+
+**Context:** The Telegram Mini App SDK space also churned: the older `@twa-dev/sdk`
+is deprecated, merged into **`@telegram-apps/sdk`** / **`@telegram-apps/sdk-react`**
+(the current official, Telegram-maintained SDK as of writing). Server-side
+verification of a Mini App's `initData` (the cryptographically-signed proof of
+*which* Telegram user opened the app - HMAC-SHA256 keyed by
+`HMAC-SHA256("WebAppData", BOT_TOKEN)` over the sorted payload) itself moved
+packages mid-cycle: `@telegram-apps/init-data-node` is already deprecated in favor
+of **`@tma.js/init-data-node`**.
+
+**Decision:** Build the Mini App with `@telegram-apps/sdk-react` for the
+Telegram-side UI/platform integration, `@tma.js/init-data-node` for server-side
+`initData` verification (never trust the client-parsed `initDataUnsafe` object for
+anything authorization-relevant - only the raw signed string, verified
+server-side, with a constant-time comparison matching the discipline in
+`lib/timing-safe-equal.ts`, and an `auth_date` staleness check), and
+`@tonconnect/ui-react` for wallet connection. The Mini-App-specific TON Connect
+wrinkle: it needs its own publicly-hosted `tonconnect-manifest.json` and
+`actionsConfiguration.twaReturnUrl` set on `TonConnectUIProvider` so an external
+wallet-approval flow returns the user back into the Telegram WebView - this
+doesn't exist in a plain-web TON Connect integration and is easy to miss.
+
+**Consequences:** Same re-verify-before-building note as ADR-011 - two renames in
+one package's short lifetime is a strong signal to re-check current package names
+at actual implementation time, not trust this list indefinitely.

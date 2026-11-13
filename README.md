@@ -26,6 +26,9 @@ be cleared first.
   product/architecture decision as a short ADR, with context and consequences.
 - [`docs/runbook.md`](./docs/runbook.md) - how to run it: setup, environment
   variables, common commands, incident response, the mainnet cutover checklist.
+- [`docs/ton-pool.md`](./docs/ton-pool.md) - the TON-native pool and Telegram Mini
+  App design (M7, not started) - a second, independent payment rail, purely
+  additive to everything above.
 - [`CLAUDE.md`](./CLAUDE.md) - engineering conventions for anyone (human or agent)
   working in this repo.
 
@@ -37,7 +40,9 @@ packages/verifier    Standalone RNG/verification logic - the single source of tr
                       published independently so anyone can run it unaided
 packages/db          Drizzle schema + Neon client
 contracts            Foundry project - the LotteryPool escrow/payout contract
-docs                 architecture, decisions, runbook (see above)
+contracts-ton        (M7, not started) Tolk/Acton project - the TON-native pool's
+                      contract, see docs/ton-pool.md
+docs                 architecture, decisions, runbook, ton-pool (see above)
 ```
 
 ## Quick start
